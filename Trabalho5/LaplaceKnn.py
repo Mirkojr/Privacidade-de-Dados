@@ -1,24 +1,29 @@
 import numpy as np
+from metrics import distancia_euclidiana
 
 """
     Implementa o classificador r-N privado usando o Mecanismo de Laplace (Algoritmo 1).
-    Usa o 'radius_r' para definir a vizinhança.
 """
 class LaplaceKNN:
 
     def __init__(self, dataset, labels, privacy_budget, radius_r):
+        """ Inicializa o classificador Laplace KNN. 
+            Parâmetros:
+            dataset: Conjunto de dados de treinamento (features).
+            labels: Rótulos correspondentes ao conjunto de dados de treinamento.
+            privacy_budget: Orçamento de privacidade (epsilon).
+            radius_r: Raio r para considerar vizinhos.
+        """
         self.dataset = dataset
         self.labels = labels
         self.privacy_budget = privacy_budget
         self.radius_r = radius_r
 
-    def euclidiana(self, data_set, x_ponto):
-        return np.linalg.norm(data_set - x_ponto, axis=1)
 
     def countXT(self, x_teste):
         """ Conta os rótulos dos vizinhos dentro do raio r para a amostra x_teste. """
         
-        distancias = self.euclidiana(self.dataset, x_teste)
+        distancias = distancia_euclidiana(self.dataset, x_teste)
 
         # C_r_x(I) < r
         # np.where retorna uma tupla, onde o primeiro elemento é o array de índices
@@ -41,33 +46,26 @@ class LaplaceKNN:
 
         return contagem_votos
 
-    def laplace(self, e):
+    def gerar_ruido_laplace(self, epsilon: float) -> float:
         """
-        Gera um ruído de Laplace manualmente usando Amostragem por Transformada Inversa.
+        Gera um ruído de Laplace usando Amostragem por Transformada Inversa.
         Fórmula: x = mu - b * sgn(u) * ln(1 - 2|u|)
         """
-        # 1. Define a escala (b)
-        b = 1 / e
+        escala = 1 / epsilon
 
-        # 2. Gera um número aleatório uniforme (U) entre -0.5 e 0.5
-        # np.random.rand() gera entre 0.0 e 1.0. Subtraindo 0.5, centralizamos no zero.
         u = np.random.rand() - 0.5
-
-        # 3. Aplica a fórmula da Transformada Inversa
-        # sgn pega o sinal (se u for negativo, o ruído vai para a esquerda, se positivo, direita)
         sinal = np.sign(u)
-
-        # ln(1 - 2|u|) transforma a probabilidade linear em decaimento exponencial
         termo_log = np.log(1 - 2 * np.abs(u))
-        ruido = -b * sinal * termo_log
 
+        ruido = -escala * sinal * termo_log
         return ruido
 
     def calcular_contagens_ruidosas(self, x_teste, labelsSet):
+        """ Calcula as contagens ruidosas para cada rótulo possível. """
         # Obter as contagens
         contagens = self.countXT(x_teste)
 
-        # Se contagens estiver vazio (nenhum vizinho), para tudo e retorna None
+        # Se contagens estiver vazio (nenhum vizinho), para tudo, e retorna None
         if not contagens:
             return None
 
@@ -80,16 +78,17 @@ class LaplaceKNN:
         contagens_ruidosas = {}
         for I in labelsSet:
             contagem_I = contagens.get(I, 0)
-            nc_I = contagem_I + self.laplace(epsilon_dividido)
+            nc_I = contagem_I + self.gerar_ruido_laplace(epsilon_dividido)
             contagens_ruidosas[I] = nc_I
 
         return contagens_ruidosas
 
 
     def decidir_vencedor_ruidoso(self, contagens_ruidosas):
-        # Retorna o rótulo com maior valor ruidoso
+        """ Decide o rótulo vencedor com base nas contagens ruidosas. """
         label_previsto = max(contagens_ruidosas.items(), key=lambda item: item[1])[0]
         return label_previsto
 
     def atualizar_epsilon(self, epsilon):
+        """ Atualiza o orçamento de privacidade (epsilon). """
         self.privacy_budget = epsilon

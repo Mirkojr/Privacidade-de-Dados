@@ -1,178 +1,126 @@
-import kagglehub
+import os
+import numpy as np
 import pandas as pd
+import kagglehub
+from typing import Tuple, Dict
+
+# Importando as classes e funções dos outros módulos
 from LaplaceKnn import LaplaceKNN
 from KnnTradicional import knn_tradicional_k10
-import numpy as np
-import os
+from metrics import distancia_euclidiana
 
-def data_download():
-    """ Realiza o download do dataset 'adult.csv' do Kaggle.
-        Retorna o DataFrame com os dados.
-    """
-    path = kagglehub.dataset_download("wenruliu/adult-income-dataset")
-    csv_file = "adult.csv"
-    data = pd.read_csv(os.path.join(path, csv_file))
-    return data
+# --- CONFIGURAÇÃO ---
+CONFIG = {
+    "REPO_URL": "wenruliu/adult-income-dataset",
+    "FILENAME": "adult.csv",
+    "TARGET_COL": "income",
+    "DROP_COLS": ['fnlwgt', 'education', 'capital-gain', 'capital-loss', 'hours-per-week'],
+    "IGNORE_ENCODE": ['age', 'educational-num'],
+    "TRAIN_SPLIT": 0.7,
+    "SEED": 42,
+    "EPSILONS": [0.1, 0.5, 1.0, 5.0],
+    "RAIO": 6
+}
 
-def preprocess_data(data: pd.DataFrame):
-    """ Realiza o pré-processamento dos dados conforme especificação.
-        Remove colunas irrelevantes, trata valores faltantes.
-    """
-    cols_to_drop = ['fnlwgt', 'education', 'capital-gain', 'capital-loss', 'hours-per-week']
-    data = data.drop(columns=cols_to_drop)
-    
-    data = data.replace('?', np.nan)
-    data = data.dropna()
-    return data
-
-def label_encoder(data: pd.DataFrame):
-    """ Codifica as colunas categóricas em números inteiros.
-        Retorna o dicionário de mapeamento e o DataFrame codificado.
-    """
-    df_encoded = data.copy()
-
-    # Seleciona as colunas categóricas (excluindo 'age' e 'educational-num')
-    cols = df_encoded.drop(columns=['age', 'educational-num']).columns
-
-    mapeamento_completo = {}
-    for coluna in cols:
-        # mapeamento de cada valor único da coluna para um número inteiro 
-        mapa = {label: i for i, label in enumerate(df_encoded[coluna].unique())}
-        # guarda o mapeamento que é um dicionário
-        mapeamento_completo[coluna] = mapa
-        # substitui a coluna codificada para o DataFrame 
-        df_encoded[coluna] = df_encoded[coluna].map(mapa)
-    
-    return mapeamento_completo, df_encoded
-
-def dividir_dados_treino_teste(data, target_col='income'):
-    """ Divide o DataFrame em conjuntos de treino e teste (70%/30%).
-        Retorna X_train, y_train, X_test, y_test como arrays NumPy.
-    """
-    train_df = data.sample(frac=0.7, random_state=42)
-    
-    # O TESTE é o dataset original MENOS as linhas que foram pro treino
-    test_df = data.drop(train_df.index)
-    
-    # Separa X e y e converte para array do NumPy com .values (necessário para o KNN)
-    # Para treino
-    X_train = train_df.drop(columns=[target_col]).values
-    y_train = train_df[target_col].values
-    # Para teste
-    X_test = test_df.drop(columns=[target_col]).values
-    y_test = test_df[target_col].values
-    
-    return X_train, y_train, X_test, y_test
-
-def print_mapeamento(mapeamentoDict: dict):
-    """ Imprime o mapeamento das colunas categóricas para seus valores inteiros.
-    """
-    for key, value in mapeamentoDict.items():
-        print(f"{key}:")
-        for item in value.items():
-            print(f"  {item}")
-
-def qtd_classes_Mapeamento(mapeamentoDict: dict):
-    """ Retorna a quantidade total de classes no mapeamento.
-    """
-    qtd = 0
-    ultima_chave = list(mapeamentoDict.keys())[-1] 
-    print("O somatório das classes é: ", end="")
-    for key, value in mapeamentoDict.items():
-        print(len(value), end="=" if ultima_chave == key else "+")
-        qtd += len(value)
-
-    return qtd
-
-def classe_Majoritaria(array):
-    """ Retorna a classe majoritária do conjunto dado.
-    """
-    valores, contagens = np.unique(array, return_counts=True)
-    indice_maior = np.argmax(contagens)
-    classe_majoritaria = valores[indice_maior]
-    return classe_majoritaria
-
-def preparar_dados():
-    # DOWNLOAD DO ARQUIVO 'adult.csv'
+def carregar_dataset() -> pd.DataFrame:
+    """Baixa e carrega o dataset."""
     try:
-        data = data_download()
-    except:
-        print("Erro no download. Verifique internet/caminho.")
-        return None, None, None, None
+        path = kagglehub.dataset_download(CONFIG["REPO_URL"])
+        file_path = os.path.join(path, CONFIG["FILENAME"])
+        return pd.read_csv(file_path)
+    except Exception as e:
+        raise RuntimeError(f"Falha ao baixar dataset: {e}")
 
-    # PREPROCESSAMENTO
-    data_preprocessed = preprocess_data(data)
+def preprocessar(df: pd.DataFrame) -> pd.DataFrame:
+    """Limpa o dataset."""
+    df = df.drop(columns=CONFIG["DROP_COLS"], errors='ignore')
+    df = df.replace('?', np.nan).dropna()
+    return df
 
-    # CODIFICAÇÃO DE LABELS
-    dict_labels, df_labels_encoded = label_encoder(data_preprocessed)
+def codificar_dados(df: pd.DataFrame) -> Tuple[Dict, pd.DataFrame]:
+    """Codifica colunas categóricas."""
+    df_enc = df.copy()
+    
+    # Seleciona colunas categóricas ignorando as especificadas  
+    cols = [c for c in df_enc.columns if c not in CONFIG["IGNORE_ENCODE"] and df_enc[c].dtype == 'object']
+    
+    mapeamento = {}
+    for c in cols:
+        unique_vals = df_enc[c].unique()
+        mapa = {val: i for i, val in enumerate(unique_vals)}
+        mapeamento[c] = mapa
+        df_enc[c] = df_enc[c].map(mapa)
+        
+    return mapeamento, df_enc
 
-    # DIVISÃO TREINO/TESTE
-    X_train, y_train, X_test, y_test = dividir_dados_treino_teste(df_labels_encoded, target_col='income')
+def obter_treino_teste(df: pd.DataFrame) -> Tuple[np.ndarray, ...]:
+    """Divide em treino e teste e converte para NumPy."""
+    train_df = df.sample(frac=CONFIG["TRAIN_SPLIT"], random_state=CONFIG["SEED"])
+    test_df = df.drop(train_df.index)
+    
+    # Função auxiliar interna para separar X e y
+    def split_xy(d):
+        x = d.drop(columns=[CONFIG["TARGET_COL"]]).values
+        y = d[CONFIG["TARGET_COL"]].values
+        return x, y
 
-    return X_train, y_train, X_test, y_test
+    X_tr, y_tr = split_xy(train_df)
+    X_te, y_te = split_xy(test_df)
+    
+    return X_tr, y_tr, X_te, y_te
 
+def salvar_resultados(filename: str, conteudo: str):
+    with open(filename, "w") as f:
+        f.write(conteudo)
 
+# --- EXECUÇÃO ---
 if __name__ == "__main__":
+    print(">>> Iniciando Pipeline...")
     
-    print("--- Preparando Dados ---")
-    X_train, y_train, X_test, y_test = preparar_dados()
+    # 1. Dados
+    raw_data = carregar_dataset()
+    clean_data = preprocessar(raw_data)
+    _, encoded_data = codificar_dados(clean_data)
+    X_train, y_train, X_test, y_test = obter_treino_teste(encoded_data)
     
-    # Definir labelsSet
-    labels_set = np.unique(y_train) 
+    classes_unicas = np.unique(y_train)
     
-    # --- KNN TRADICIONAL (K=10) ---
+    # 2. Tradicional
+    print("\n>>> Executando KNN Tradicional...")
     preds_trad = knn_tradicional_k10(X_train, y_train, X_test, k=10)
     acc_trad = np.mean(preds_trad == y_test)
-    print(f"Acurácia KNN Tradicional: {acc_trad:.4f}")
+    print(f"Acurácia Tradicional: {acc_trad:.4f}")
     
-    # Salvar arquivo tradicional
-    with open("resultado_tradicional.txt", "w") as f:
-        f.write(f"Acuracia: {acc_trad}\nPredicoes: {preds_trad.tolist()}")
+    salvar_resultados("resultado_tradicional.txt", 
+                      f"Acuracia: {acc_trad}\nPredicoes: {preds_trad.tolist()}")
 
-    # --- KNN PRIVADO  ---
-    valores_epsilon = [0.1, 0.5, 1.0, 5.0]
-    raio = 6 
+    # 3. Privado
+    print("\n>>> Executando KNN Privado...")
+    knn_privado = LaplaceKNN(X_train, y_train, 0, radius_r=CONFIG["RAIO"])
     
-    # Inicializa o classificador LaplaceKNN
-    knn_privado = LaplaceKNN(
-        dataset=X_train,
-        labels=y_train,
-        privacy_budget=0,
-        radius_r=raio
-    )
+    # Estratégia de Fallback (Classe majoritária global) para casos sem vizinhos
+    classe_fallback = np.argmax(np.bincount(y_train))
 
-    # Obtém a classe majoritária para uso em casos sem vizinhos
-    classe_majoritaria = classe_Majoritaria(y_train)
-    # Loop pelos valores de epsilon
-    for eps in valores_epsilon:
+    for eps in CONFIG["EPSILONS"]:
+        print(f"   -> Rodando Epsilon: {eps}")
         knn_privado.atualizar_epsilon(eps)
-
-        print(f"\n--- Rodando Privado | Epsilon: {eps} | Raio: {raio} ---")
         
-        predicoes_privadas = []
-        # Loop pelos dados de teste
-        for i, amostra in enumerate(X_test):
-            if i % 100 == 0: print(f"Progresso Eps {eps}: {i}/{len(X_test)}")
+        preds_priv = []
+        for amostra in X_test:
+ 
+            contagens = knn_privado.calcular_contagens_ruidosas(amostra, classes_unicas)
             
-            # Obter contagens ruidosas para a amostra
-            contagens = knn_privado.calcular_contagens_ruidosas(amostra, labels_set)
-            
-            # Decidir o vencedor com base nas contagens ruidosas
             if contagens:
-                vencedor = knn_privado.decidir_vencedor_ruidoso(contagens)
-                predicoes_privadas.append(vencedor)
+                pred = knn_privado.decidir_vencedor_ruidoso(contagens)
             else:
-                # Se não tem vizinho no raio 6, chutamos a classe majoritária (0) ou -1
-                predicoes_privadas.append(classe_majoritaria) 
+                pred = classe_fallback
+            preds_priv.append(pred)
 
-        # Calcula acurácia 
-        predicoes_privadas = np.array(predicoes_privadas)
-        acc_priv = np.mean(predicoes_privadas == y_test)
-        print(f"Acurácia Privada (eps={eps}): {acc_priv:.4f}")
-
-        # Salvar arquivo privado
-        nome_arq = f"resultado_privado_eps_{eps}.txt"
-        with open(nome_arq, "w") as f:
-            f.write(f"Epsilon: {eps}\nRaio: {raio}\nAcuracia: {acc_priv}\nPredicoes: {predicoes_privadas.tolist()}")
-
-    print("\nFim do processamento.")
+        preds_priv = np.array(preds_priv)
+        acc_priv = np.mean(preds_priv == y_test)
+        print(f"      Acurácia (eps={eps}): {acc_priv:.4f}")
+        
+        salvar_resultados(f"resultado_privado_eps_{eps}.txt",
+                          f"Epsilon: {eps}\nRaio: {CONFIG['RAIO']}\nAcuracia: {acc_priv}\nPredicoes: {preds_priv.tolist()}")
+    
+    print("\n>>> Processo Finalizado.")

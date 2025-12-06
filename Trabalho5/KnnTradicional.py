@@ -1,7 +1,5 @@
 import numpy as np
-
-def euclidiana(data_set, x_ponto):
-        return np.linalg.norm(data_set - x_ponto, axis=1)
+from metrics import distancia_euclidiana
 
 def knn_tradicional_k10(X_train, y_train, X_test, k=10):
         """
@@ -10,12 +8,10 @@ def knn_tradicional_k10(X_train, y_train, X_test, k=10):
         predicoes = []
         total = len(X_test)
         
-        print(f"Calculando KNN Tradicional (k={k})...")
         for i, x in enumerate(X_test):
-            if i % 100 == 0: print(f"Progresso Tradicional: {i}/{total}")
-            
+
             # 1. Distância
-            dists = euclidiana(X_train, x)
+            dists = distancia_euclidiana(X_train, x)
             
             # 2. Pega os índices dos k menores
             # argsort ordena do menor pro maior
