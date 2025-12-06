@@ -16,6 +16,8 @@ class LaplaceKNN:
         return np.linalg.norm(data_set - x_ponto, axis=1)
 
     def countXT(self, x_teste):
+        """ Conta os rótulos dos vizinhos dentro do raio r para a amostra x_teste. """
+        
         distancias = self.euclidiana(self.dataset, x_teste)
 
         # C_r_x(I) < r
@@ -88,3 +90,6 @@ class LaplaceKNN:
         # Retorna o rótulo com maior valor ruidoso
         label_previsto = max(contagens_ruidosas.items(), key=lambda item: item[1])[0]
         return label_previsto
+
+    def atualizar_epsilon(self, epsilon):
+        self.privacy_budget = epsilon
