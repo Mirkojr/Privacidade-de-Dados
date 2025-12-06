@@ -2,7 +2,8 @@ import os
 import numpy as np
 import pandas as pd
 import kagglehub
-from typing import Tuple, Dict
+from typing import Tuple, Dict, List # Para tipagem 
+import matplotlib.pyplot as plt 
 
 # Importando as classes e funções dos outros módulos
 from LaplaceKnn import LaplaceKNN
@@ -15,11 +16,11 @@ CONFIG = {
     "FILENAME": "adult.csv",
     "TARGET_COL": "income",
     "DROP_COLS": ['fnlwgt', 'education', 'capital-gain', 'capital-loss', 'hours-per-week'],
-    "IGNORE_ENCODE": ['age', 'educational-num'],
     "TRAIN_SPLIT": 0.7,
     "SEED": 42,
     "EPSILONS": [0.1, 0.5, 1.0, 5.0],
-    "RAIO": 6
+    "RAIO": 6,
+    "GRAPH_FILE": "grafico_acuracia.png"
 }
 
 def carregar_dataset() -> pd.DataFrame:
@@ -40,10 +41,8 @@ def preprocessar(df: pd.DataFrame) -> pd.DataFrame:
 def codificar_dados(df: pd.DataFrame) -> Tuple[Dict, pd.DataFrame]:
     """Codifica colunas categóricas."""
     df_enc = df.copy()
-    
-    # Seleciona colunas categóricas ignorando as especificadas  
-    cols = [c for c in df_enc.columns if c not in CONFIG["IGNORE_ENCODE"] and df_enc[c].dtype == 'object']
-    
+
+    cols = df_enc.columns
     mapeamento = {}
     for c in cols:
         unique_vals = df_enc[c].unique()
@@ -72,6 +71,30 @@ def obter_treino_teste(df: pd.DataFrame) -> Tuple[np.ndarray, ...]:
 def salvar_resultados(filename: str, conteudo: str):
     with open(filename, "w") as f:
         f.write(conteudo)
+        
+def gerar_grafico_comparativo(epsilons: List[float], priv_accs: List[float], trad_acc: float):
+    """Gera e salva o gráfico comparativo de acurácia."""
+    plt.figure(figsize=(10, 6))
+    
+    # 1. Linha do KNN Privado
+    plt.plot(epsilons, priv_accs, marker='o', linestyle='-', color='b', label='KNN Privado (Laplace)')
+    
+    # 2. Linha de Referência do KNN Tradicional
+    # axhline cria uma linha horizontal em todo o eixo
+    plt.axhline(y=trad_acc, color='r', linestyle='--', label=f'KNN Tradicional (k=10): {trad_acc:.4f}')
+    
+    # Configurações visuais
+    plt.title(f'Impacto do Epsilon na Acurácia (Raio={CONFIG["RAIO"]})')
+    plt.xlabel('Epsilon (ε)')
+    plt.ylabel('Acurácia')
+    plt.xticks(epsilons) # Garante que os epsilons apareçam no eixo X
+    plt.legend()
+    plt.grid(True, linestyle=':', alpha=0.6)
+    
+    # Salvar
+    plt.savefig(CONFIG["GRAPH_FILE"])
+    print(f"\n[Gráfico] Salvo em: {CONFIG['GRAPH_FILE']}")
+    plt.close()
 
 # --- EXECUÇÃO ---
 if __name__ == "__main__":
@@ -100,6 +123,7 @@ if __name__ == "__main__":
     
     # Estratégia de Fallback (Classe majoritária global) para casos sem vizinhos
     classe_fallback = np.argmax(np.bincount(y_train))
+    historico_acuracias = []
 
     for eps in CONFIG["EPSILONS"]:
         print(f"   -> Rodando Epsilon: {eps}")
@@ -119,8 +143,12 @@ if __name__ == "__main__":
         preds_priv = np.array(preds_priv)
         acc_priv = np.mean(preds_priv == y_test)
         print(f"      Acurácia (eps={eps}): {acc_priv:.4f}")
-        
+        # Guarda no histórico para o gráfico
+        historico_acuracias.append(acc_priv)
+
         salvar_resultados(f"resultado_privado_eps_{eps}.txt",
                           f"Epsilon: {eps}\nRaio: {CONFIG['RAIO']}\nAcuracia: {acc_priv}\nPredicoes: {preds_priv.tolist()}")
-    
+    # 4. Gerar Gráfico
+    gerar_grafico_comparativo(CONFIG["EPSILONS"], historico_acuracias, acc_trad)
+
     print("\n>>> Processo Finalizado.")
