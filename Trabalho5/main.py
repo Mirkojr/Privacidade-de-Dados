@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 # Importando as classes e funções dos outros módulos
 from LaplaceKnn import LaplaceKNN
 from KnnTradicional import knn_tradicional_k10
-from metrics import distancia_euclidiana
+
 
 # --- CONFIGURAÇÃO ---
 CONFIG = {
@@ -18,7 +18,7 @@ CONFIG = {
     "DROP_COLS": ['fnlwgt', 'education', 'capital-gain', 'capital-loss', 'hours-per-week'],
     "TRAIN_SPLIT": 0.7,
     "SEED": 42,
-    "EPSILONS": [0.1, 0.5, 1.0, 5.0],
+    "EPSILONS": [0.5, 1.0, 5.0, 10],
     "RAIO": 6,
     "GRAPH_FILE": "grafico_acuracia.png"
 }
@@ -42,9 +42,10 @@ def codificar_dados(df: pd.DataFrame) -> Tuple[Dict, pd.DataFrame]:
     """Codifica colunas categóricas."""
     df_enc = df.copy()
 
-    cols = df_enc.columns
+    cols = ['workclass','marital-status','occupation','relationship','race','gender','native-country','income']
+
     mapeamento = {}
-    for c in cols:
+    for c in cols: 
         unique_vals = df_enc[c].unique()
         mapa = {val: i for i, val in enumerate(unique_vals)}
         mapeamento[c] = mapa
@@ -52,21 +53,15 @@ def codificar_dados(df: pd.DataFrame) -> Tuple[Dict, pd.DataFrame]:
         
     return mapeamento, df_enc
 
-def obter_treino_teste(df: pd.DataFrame) -> Tuple[np.ndarray, ...]:
+def obter_treino_teste(X:pd.DataFrame, y:pd.Series) -> Tuple[np.ndarray, ...]:
     """Divide em treino e teste e converte para NumPy."""
-    train_df = df.sample(frac=CONFIG["TRAIN_SPLIT"], random_state=CONFIG["SEED"])
-    test_df = df.drop(train_df.index)
-    
-    # Função auxiliar interna para separar X e y
-    def split_xy(d):
-        x = d.drop(columns=[CONFIG["TARGET_COL"]]).values
-        y = d[CONFIG["TARGET_COL"]].values
-        return x, y
+    X_treino = X.sample(frac=CONFIG["TRAIN_SPLIT"], random_state=CONFIG["SEED"])
+    y_treino = y.loc[X_treino.index]
 
-    X_tr, y_tr = split_xy(train_df)
-    X_te, y_te = split_xy(test_df)
+    X_teste = X.drop(X_treino.index)
+    y_teste = y.loc[X_teste.index]
     
-    return X_tr, y_tr, X_te, y_te
+    return X_treino.values, y_treino.values, X_teste.values, y_teste.values
 
 def salvar_resultados(filename: str, conteudo: str):
     with open(filename, "w") as f:
@@ -88,6 +83,9 @@ def gerar_grafico_comparativo(epsilons: List[float], priv_accs: List[float], tra
     plt.xlabel('Epsilon (ε)')
     plt.ylabel('Acurácia')
     plt.xticks(epsilons) # Garante que os epsilons apareçam no eixo X
+
+    plt.xlim((0, 11))
+    plt.ylim((0, 0.85))
     plt.legend()
     plt.grid(True, linestyle=':', alpha=0.6)
     
@@ -104,7 +102,11 @@ if __name__ == "__main__":
     raw_data = carregar_dataset()
     clean_data = preprocessar(raw_data)
     _, encoded_data = codificar_dados(clean_data)
-    X_train, y_train, X_test, y_test = obter_treino_teste(encoded_data)
+
+    X = encoded_data.drop(columns=[CONFIG["TARGET_COL"]])
+    y = encoded_data[CONFIG["TARGET_COL"]]
+
+    X_train, y_train, X_test, y_test = obter_treino_teste(X, y)
     
     classes_unicas = np.unique(y_train)
     

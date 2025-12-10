@@ -6,13 +6,12 @@ def knn_tradicional_k10(X_train, y_train, X_test, k=10):
         Implementação simples do KNN clássico
         """
         predicoes = []
-        total = len(X_test)
         
         for i, x in enumerate(X_test):
 
             # 1. Distância
             dists = distancia_euclidiana(X_train, x)
-            
+
             # 2. Pega os índices dos k menores
             # argsort ordena do menor pro maior
             k_indices = np.argsort(dists)[:k]
