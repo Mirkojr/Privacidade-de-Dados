@@ -1,3 +1,9 @@
 /backup/
 *.csv
 .csv
+/Trabalho5/__pycache__
+/Trabalho5/testes/*.png
+env-priv/
+*.txt
+*.png
+.csv
