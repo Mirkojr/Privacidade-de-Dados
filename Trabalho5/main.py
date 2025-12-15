@@ -4,7 +4,7 @@ import pandas as pd
 import kagglehub
 from typing import Tuple, Dict, List # Para tipagem 
 import matplotlib.pyplot as plt 
-
+import matplotlib.ticker as mtick
 # Importando as classes e funções dos outros módulos
 from LaplaceKnn import LaplaceKNN
 from KnnTradicional import knn_tradicional_k10
@@ -18,7 +18,7 @@ CONFIG = {
     "DROP_COLS": ['fnlwgt', 'education', 'capital-gain', 'capital-loss', 'hours-per-week'],
     "TRAIN_SPLIT": 0.7,
     "SEED": 42,
-    "EPSILONS": [0.5, 1.0, 5.0, 10],
+    "EPSILONS": [0.001, 0.5, 1, 5, 10],
     "RAIO": 6,
     "GRAPH_FILE": "grafico_acuracia.png"
 }
@@ -82,10 +82,8 @@ def gerar_grafico_comparativo(epsilons: List[float], priv_accs: List[float], tra
     plt.title(f'Impacto do Epsilon na Acurácia (Raio={CONFIG["RAIO"]})')
     plt.xlabel('Epsilon (ε)')
     plt.ylabel('Acurácia')
-    plt.xticks(epsilons) # Garante que os epsilons apareçam no eixo X
-
-    plt.xlim((0, 11))
-    plt.ylim((0, 0.85))
+    plt.xticks(epsilons, rotation=45) # Garante que os epsilons apareçam no eixo X
+    plt.gca().yaxis.set_major_formatter(mtick.FormatStrFormatter('%.2f'))
     plt.legend()
     plt.grid(True, linestyle=':', alpha=0.6)
     
