@@ -18,7 +18,7 @@ CONFIG = {
     "DROP_COLS": ['fnlwgt', 'education', 'capital-gain', 'capital-loss', 'hours-per-week'],
     "TRAIN_SPLIT": 0.7,
     "SEED": 42,
-    "EPSILONS": [0.001, 0.5, 1, 5, 10],
+    "EPSILONS": [0.001, 0.5, 1, 5, 10, 20, 30],
     "RAIO": 6,
     "GRAPH_FILE": "grafico_acuracia.png"
 }

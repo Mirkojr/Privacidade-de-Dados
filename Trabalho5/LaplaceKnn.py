@@ -71,7 +71,9 @@ class LaplaceKNN:
 
         # Ajuste obrigatório: Composição Sequencial (Epsilon / L)
         L = len(labelsSet)
-        epsilon_dividido = self.privacy_budget / L
+        n = x_teste.shape[0]
+        
+        epsilon_dividido = self.privacy_budget / (L*n)
 
         # Loop sobre todos os rótulos possíveis
         # Adiciona ruído de Laplace a cada contagem
