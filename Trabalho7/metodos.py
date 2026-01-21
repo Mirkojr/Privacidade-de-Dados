@@ -1,31 +1,35 @@
-from numpy.random import choice
-def resposta_randomizada(resposta, p=0.5, q=0.5):
+import numpy as np
+
+def resposta_randomizada(resposta, p_cara=0.5, q_coroa=0.5):
     moedas = ['Cara', 'Coroa']
-    moeda_escolhida = choice(moedas, p=[p,q])
-    resposta_verdadeira = 'Sim' if resposta == '>50K' else 'Não'
+    moeda_escolhida = np.random.choice(moedas, p=[p_cara,q_coroa])
     
     if moeda_escolhida == 'Cara':
-        return resposta_verdadeira
+        return resposta
     else:
-        moeda_escolhida = choice(moedas)
+        moeda_escolhida = np.random.choice(moedas, p=[p_cara,q_coroa])
         if moeda_escolhida == 'Cara':
             return 'Sim'
         else:
             return 'Não'
 
-def estimativa_moedas_justas(vetor_respostas):
-    S = vetor_respostas.count('Sim')
-    n = len(vetor_respostas)
-    T = 2*S - int(n/2)
+def estimador(vetor_respostas_randomizadas, p=0.5, q=0.5):
+    S = np.count_nonzero(vetor_respostas_randomizadas == 'Sim')
+    n = len(vetor_respostas_randomizadas)
+    T = (S - n * q*p)/p
 
-    return T if T >= 0 else 0
+    return round(T) if T >= 0 else 0
 
 if __name__ == '__main__':
-    respostas = ['>50K', '<=50K', '>50K', '<=50K', '<=50K']
+    
+    respostas = np.array(['>50K', '<=50K', '>50K', '<=50K', '<=50K'])
+    func_vec = np.vectorize(resposta_randomizada)
+    respostas_randomizadas = func_vec(respostas)
+    # for resposta in respostas:
+    #     respostas_randomizadas.append(resposta_randomizada(resposta))
 
-    respostas_randomizadas = []
-    for resposta in respostas:
-        respostas_randomizadas.append(resposta_randomizada(resposta))
-
-    estimativa = estimativa_moedas_justas(respostas_randomizadas)
+    print(respostas)
+    print(respostas_randomizadas)
+    estimativa = estimador(respostas_randomizadas)
+    print(np.count_nonzero(respostas == '>50K'))
     print(estimativa)

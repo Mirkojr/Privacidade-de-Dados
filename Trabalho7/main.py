@@ -2,20 +2,17 @@ import os
 import numpy as np
 import pandas as pd
 import kagglehub
-from typing import Tuple, Dict
 import matplotlib.pyplot as plt 
 
-from metodos import resposta_randomizada, estimativa_moedas_justas
+from metodos import *
 
 # --- CONFIGURAÇÃO ---
 CONFIG = {
     "REPO_URL": "wenruliu/adult-income-dataset",
     "FILENAME": "adult.csv",
-    "TARGET_COL": "income",
     "GRAPH_FILE": "grafico_acuracia_exponencial.png",
-    # Nomes dos arquivos
-    "FILE_TRAD": "RELATORIO_TRADICIONAL.txt",
-    "FILE_PRIV": "RELATORIO_EXPONENCIAL.txt"
+    "p": [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1],
+    "q": [0.9, 0.8,0.7,0.6,0.5,0.4,0.3,0.2,0.1,0],
 }
 
 def carregar_dataset() -> pd.Series:
@@ -27,55 +24,74 @@ def carregar_dataset() -> pd.Series:
     except Exception as e:
         raise RuntimeError(f"Falha ao baixar dataset: {e}")
 
+def consulta(resposta):
+    if resposta == '>50K':
+        return 'Sim'
+    else:
+        return 'Não'
+    
+def experimento(respostas_verdadeiras, p, q, k=10):
+    estimativa_real = np.count_nonzero(respostas_verdadeiras == 'Sim')
+    erros = []
+    for _ in range(k):
+        respostas_randomizadas = []
+        for resposta in respostas_verdadeiras:
+            respostas_randomizadas.append(resposta_randomizada(resposta, p, q))
+
+        acuracia = np.mean((respostas_verdadeiras == respostas_randomizadas).astype(int))
+        estimativa = estimador(np.array(respostas_randomizadas), p=p, q=q)
+
+        erros.append(abs(estimativa_real - estimativa))
+
+    return np.mean(erros), np.mean(acuracia)
+
+def plota_grafico(valores_p, metrica, ylabel, title, fname):
+    plt.figure()
+    plt.plot(valores_p, metrica)
+
+    plt.xlabel('Valores das probabilidades (p)')
+    plt.ylabel(ylabel)
+    plt.title(title)
+    plt.savefig(fname, dpi=600)
+    plt.close()
+
 # --- MAIN ---
 if __name__ == "__main__":
 
-    respostas = carregar_dataset().to_list()
-    respostas_randomizadas = []
-    for resposta in respostas:
-        respostas_randomizadas.append(resposta_randomizada(resposta))
+    print('------------ Carregando dataset ------------')
+    respostas_verdadeiras = carregar_dataset().to_numpy()
+    respostas_verdadeiras = np.array([consulta(resposta) for resposta in respostas_verdadeiras])
+
+    print('------------ Calculando experimento para moedas justas ------------')
     
-    estimativa = estimativa_moedas_justas(respostas_randomizadas)
-    print(estimativa)
+    mae_justas, acuracia_justas = experimento(respostas_verdadeiras, p=0.5, q=0.5)
+    print('Métricas para o caso das moedas justas.')
+    print(f'MAE: {mae_justas}, Acuracia: {acuracia_justas}')
 
-    # # Loop Principal
-    # for r in CONFIG["RADIUS"]:
-    #     print(f"\n==== Processando Raio r = {r} ====")
-        
-    #     # A) Rodar Tradicional
-    #     preds_trad = rnn_tradicional(X_train, y_train, X_test, radius=r)
-    #     acc_trad = np.mean(preds_trad == y_test)
-    #     hist_acc_tradicional[r] = acc_trad
-    #     print(f"   [Tradicional] Acurácia: {acc_trad:.4f}")
-        
-    #     # Acumula no buffer tradicional
-    #     buffer_tradicional += f"--- RAIO: {r} ---\n"
-    #     buffer_tradicional += f"Acuracia: {acc_trad:.4f}\n"
-    #     buffer_tradicional += f"Predicoes (primeiras 50): {preds_trad[:50].tolist()} ... [truncado]\n"
-    #     buffer_tradicional += "="*40 + "\n\n"
+    print('------------ Calculando experimento para moedas tendenciosas ------------')
+    p=0.6
+    q=0.4
 
-    #     # B) Rodar Privado
-    #     for eps in CONFIG["EPSILONS"]:
-    #         knn_exp.atualizar_params(epsilon_total=eps, radius_r=r)
-    #         preds_priv = knn_exp.predict(X_test, classes_unicas)
-    #         acc_priv = np.mean(preds_priv == y_test)
-    #         hist_acc_privado[r].append(acc_priv)
-            
-    #         print(f"   [Exponencial] eps={eps}: Acurácia={acc_priv:.4f}")
-            
-    #         # Acumula no buffer privado
-    #         buffer_privado += f"--- RAIO: {r} | EPSILON: {eps} ---\n"
-    #         buffer_privado += f"Acuracia: {acc_priv:.4f}\n"
-    #         buffer_privado += f"Predicoes (primeiras 50): {preds_priv[:50].tolist()} ... [truncado]\n"
-    #         buffer_privado += "-"*30 + "\n\n"
+    mae_tendenciosas, acuracia_tendenciosas = experimento(respostas_verdadeiras, p=p, q=q)
+    print(f'Métricas para o caso das moedas tendenciosas com p={p} e q={q}.')
+    print(f'MAE: {mae_tendenciosas}, Acuracia: {acuracia_tendenciosas}')
 
-    # # - Salvar os arquivos consolidados
-    # print("\n>>> Salvando relatórios...")
-    # salvar_resultados(CONFIG["FILE_TRAD"], buffer_tradicional)
-    # salvar_resultados(CONFIG["FILE_PRIV"], buffer_privado)
-    # print(f"   -> {CONFIG['FILE_TRAD']} salvo com sucesso.")
-    # print(f"   -> {CONFIG['FILE_PRIV']} salvo com sucesso.")
+    print('------------ Calculando experimento para diferentes valores de p e q ------------')
+    maes = []
+    acuracias = []
+    for valor_p, valor_q in list(zip(CONFIG['p'], CONFIG['q'])):
+        print(f'p={valor_p}, q={valor_q}')
+        mae, acuracia = experimento(respostas_verdadeiras, p=valor_p, q=valor_q)
+        print(f'MAE: {mae}, Acuracia: {acuracia}')
+        maes.append(mae)
+        acuracias.append(acuracia)
+        print('--'*10)
 
-    # - Gerar Gráfico
-    # gerar_grafico_comparativo(hist_acc_privado, hist_acc_tradicional)
-    # print("\n>>> Fim da Execução.")
+    plota_grafico(valores_p=CONFIG['p'], metrica=maes, 
+                  ylabel='MAE (Erro absoluto médio)', title='Comportamento do erro para diferentes probabilidades', 
+                  fname='plot_mae_valores_p.png')
+    plota_grafico(valores_p=CONFIG['p'], metrica=acuracias, 
+                  ylabel='Acurácia', title='Comportamento da acurácia para diferentes probabilidades',
+                  fname='plot_acc_valores_p.png')
+
+   
